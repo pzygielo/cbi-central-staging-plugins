@@ -23,6 +23,7 @@ import org.apache.maven.settings.crypto.DefaultSettingsDecryptionRequest;
 import org.apache.maven.settings.crypto.SettingsDecryptionResult;
 import org.apache.maven.plugin.AbstractMojo;
 import org.eclipse.cbi.central.CentralPortalClient;
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
 /**
@@ -138,7 +139,7 @@ public abstract class AbstractCentralMojo extends AbstractMojo {
                             + this.serverId);
                     if (username != null && !username.isEmpty() && password != null && !password.isEmpty()) {
                         String credentials = username + ":" + password;
-                        return Base64.getEncoder().encodeToString(credentials.getBytes());
+                        return Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
                     } else {
                         String missingFields = null;
                         if (username == null || username.isEmpty()) {
@@ -192,7 +193,13 @@ public abstract class AbstractCentralMojo extends AbstractMojo {
             getLog().info("Decrypting server credentials for server id: " + this.serverId);
             SettingsDecryptionRequest request = new DefaultSettingsDecryptionRequest(server);
             SettingsDecryptionResult result = this.settingsDecrypter.decrypt(request);
-            return result.getServer();
+            if (!result.getProblems().isEmpty()) {
+                result.getProblems().forEach(p ->
+                    getLog().warn("Problem decrypting credentials for server '" + this.serverId + "': "
+                        + p.getMessage(), p.getException()));
+            }
+            Server decryptedServer = result.getServer();
+            return decryptedServer != null ? decryptedServer : server;
         } else {
             getLog().info("SettingsDecrypter is not available; returning server without decryption.");
         }
